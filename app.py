@@ -10,20 +10,20 @@ st.set_page_config(
 st.title("HER2 Fractal Lab")
 
 st.markdown("""
-### Interactive Digital Pathology Workstation
+### Estación de Trabajo de Patología Digital Interactiva
 
-Analyze HER2 immunohistochemistry images using:
+Analizar imágenes de inmunohistoquímica HER2 usando:
 
-- Color deconvolution (Ruifrok & Johnston)
-- Membrane segmentation
-- Fractal Dimension
-- Lacunarity
-- Multifractal Spectrum
-- Batch analysis
-- Statistical comparison
-- Automatic clustering
+- Deconvolución de color (Ruifrok & Johnston)
+- Segmentación de membrana
+- Dimensión Fractal 
+- Lacunaridad
+- Espectro Multifractal
+- Análisis por lotes
+- Comparación estadística
+- Clustering automático
 """)
 
 st.info(
-    "Select a page from the sidebar to begin."
+    "Seleccionar opción en el menú lateral."
 )
