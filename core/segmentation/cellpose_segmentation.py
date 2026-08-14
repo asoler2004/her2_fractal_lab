@@ -1,5 +1,5 @@
 from dataclasses import dataclass
-import streamlit as st
+
 import numpy as np
 from cellpose import models
 
@@ -8,21 +8,22 @@ from cellpose import models
 class CellposeResult:
     masks: np.ndarray
     flows: list
-    styles: np.ndarray
-    diameters: float
+    styles: np.ndarray | None
+    diameters: float | None
 
 
 class CellposeSegmenter:
 
     def __init__(
         self,
-        model_type: str = "cyto3",
         gpu: bool = False,
     ):
-
+        """
+        Cellpose 4.x segmenter.
+        Uses the Cellpose-SAM model through CellposeModel.
+        """
         self.model = models.CellposeModel(
             gpu=gpu,
-            model_type=model_type,
         )
 
     def segment(
@@ -31,18 +32,14 @@ class CellposeSegmenter:
         diameter: float | None = None,
     ) -> CellposeResult:
 
-        masks, flows, styles, diams = self.model.eval(
+        masks, flows, styles = self.model.eval(
             image,
             diameter=diameter,
-            channels=[0, 0],
         )
 
         return CellposeResult(
             masks=masks,
             flows=flows,
             styles=styles,
-            diameters=diams,
+            diameters=diameter,
         )
-
-
-

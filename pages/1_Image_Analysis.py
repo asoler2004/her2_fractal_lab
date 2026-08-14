@@ -1,5 +1,3 @@
-from unittest import result
-
 from core.segmentation.cellpose_segmentation import CellposeSegmenter
 import streamlit as st
 import numpy as np
@@ -7,8 +5,14 @@ import matplotlib.pyplot as plt
 from core.io.loader import load_image
 from core.io.loader import SUPPORTED_FORMATS
 from core.preprocessing.color_deconvolution import (color_deconvolution)
-from core.segmentation.membrane_segmentation import (segment_membrane,)
+#from core.segmentation.membrane_segmentation import (segment_membrane,)
 from skimage.color import label2rgb
+
+@st.cache_resource
+def load_cellpose():
+    return CellposeSegmenter(
+        gpu=False,
+    )
 
 st.title("HER2 Image Analysis")
 
@@ -101,18 +105,23 @@ if uploaded:
     # Segmentation
     #---------------------------------------------
 
-    @st.cache_resource
-    def load_cellpose():
-        return CellposeSegmenter(
-            model_type="cyto3",
-            gpu=False,
-        )
+
 
     st.subheader("Membrane Segmentation")
 
-    segmenter = load_cellpose()
-    result = segmenter.segment(image_array, 48)
+    with st.spinner("Loading Cellpose model..."):
+        segmenter = load_cellpose()
 
+    st.success("Cellpose model loaded.")
+
+    with st.spinner("Segmenting cells..."):
+        result = segmenter.segment(
+            image_array,
+            diameter=48,
+        )
+
+    st.success("Cell segmentation complete.")
+    
     overlay = label2rgb(
         result.masks,
         image=image_array,
@@ -130,7 +139,17 @@ if uploaded:
         n_cells,
     )
 
+    mask_display = np.zeros_like(result.masks, dtype=np.uint8)
+
+    if n_cells > 0:
+        mask_display = (
+            result.masks.astype(np.float32)
+            / n_cells
+            * 255
+        ).astype(np.uint8)
+
     """
+
     st.caption(
         "Segmentation of DAB-positive regions using "
         "the quantitative DAB channel."
@@ -181,33 +200,18 @@ if uploaded:
     """
 
     col1, col2 = st.columns(2)
-
     with col1:
         st.image(
-            segmentation["raw_mask"],
-            caption="Raw DAB Mask",
-            width="stretch",
-        )
+            mask_display,
+            caption="Cell Instance Mask",
+            width="stretch",        )
     with col2:
         st.image(
-            segmentation["cleaned_mask"],
-            caption="Cleaned Mask",
-            width="stretch",
-        )
+            overlay,
+            caption="Cellpose Overlay",
+            width="stretch",        )
 
-    overlay = label2rgb(
-        segmentation["cleaned_mask"],
-        image_array,
-        bg_label=0,
-    )
-
-    st.subheader("Segmentation Overlay")
-
-    st.image(
-        overlay,
-        width="stretch",
-    )
-
+    
     """mask = segmentation["cleaned_mask"]
     total_pixels = mask.size
     positive_pixels = np.count_nonzero(mask)
