@@ -1,3 +1,5 @@
+from pandas import col
+
 from core.segmentation.cellpose_segmentation import CellposeSegmenter
 import streamlit as st
 import numpy as np
@@ -9,8 +11,9 @@ from core.preprocessing.color_deconvolution import (color_deconvolution)
 from skimage.color import label2rgb
 
 @st.cache_resource
-def load_cellpose():
+def load_cellpose(model_path=None):
     return CellposeSegmenter(
+        model_path=model_path,
         gpu=False,
     )
 
@@ -86,6 +89,8 @@ if uploaded:
     st.subheader("DAB Quantitative Analysis")
 
     dab = deconv.dab
+    hem = deconv.hematoxylin
+    eos = deconv.eosin
 
     col1, col2, col3, col4 = st.columns(4)
 
@@ -104,137 +109,103 @@ if uploaded:
     #---------------------------------------------
     # Segmentation
     #---------------------------------------------
+    st.divider()
 
+    st.subheader("Cell Segmentation")
+    st.caption("Cell instance segmentation using Cellpose.")
 
-
-    st.subheader("Membrane Segmentation")
-
-    with st.spinner("Loading Cellpose model..."):
-        segmenter = load_cellpose()
-
-    st.success("Cellpose model loaded.")
-
-    with st.spinner("Segmenting cells..."):
-        result = segmenter.segment(
-            image_array,
-            diameter=48,
-        )
-
-    st.success("Cell segmentation complete.")
-    
-    overlay = label2rgb(
-        result.masks,
-        image=image_array,
-        bg_label=0,
-    )
-    st.image(
-        overlay,
-        caption="Cellpose Segmentation",
-        width="stretch",
-    )
-    n_cells = result.masks.max()
-
-    st.metric(
-        "Detected Cells",
-        n_cells,
-    )
-
-    mask_display = np.zeros_like(result.masks, dtype=np.uint8)
-
-    if n_cells > 0:
-        mask_display = (
-            result.masks.astype(np.float32)
-            / n_cells
-            * 255
-        ).astype(np.uint8)
-
-    """
-
-    st.caption(
-        "Segmentation of DAB-positive regions using "
-        "the quantitative DAB channel."
-    )
-
-    dab = deconv.hed[:, :, 2]
-    hem = deconv.hed[:, :, 0]
-    eos = deconv.hed[:, :, 1]
-
-    st.write(
-        "DAB statistics",
-        dab.min(),
-        dab.max(),
-        dab.mean(),
-    )
-
-    threshold_method = st.radio(
-        "Threshold method",
-        ["Otsu", "Manual"],
+    model_source = st.radio(
+        "Cellpose model",
+        [
+        "Local checkpoint",
+        "Pretrained model",
+        ],
         horizontal=True,
     )
 
-    st.write("Threshold method:", threshold_method)
-
-    if threshold_method == "Otsu":
-        segmentation = segment_membrane(
-            dab,
-            threshold=None,
+    if model_source == "Local checkpoint":
+        checkpoint_path = st.text_input(
+            "Cellpose checkpoint path",
+            placeholder="/home/antonia/models/cellpose_model",
         )
-
-        threshold = segmentation["threshold"]
-        st.write("Threshold:", threshold)
-
     else:
-        threshold = st.slider(
-            "DAB threshold",
-            min_value=float(dab.min()),
-            max_value=float(dab.max()),
-            value=float(np.median(dab)),
-            step=0.01,
+        checkpoint_path = None
+
+    cell_diameter = st.slider(
+        "Estimated cell diameter (pixels)",
+        min_value=5,
+        max_value=150,
+        value=48,
+        step=1,
+        help=(
+            "Approximate diameter of cells in the image. "
+            "Adjust this according to image magnification "
+            "and cell size."
+        ),
+    )
+
+    run_cellpose = st.button(
+        "Run Cellpose",
+        type="primary",
+    )
+
+    if run_cellpose:
+        if model_source == "Pretrained model":
+            st.warning(
+                "The pretrained Cellpose model may need to be "
+                "downloaded the first time it is used."
+            )
+        if model_source == "Local checkpoint":
+            if not checkpoint_path:
+                st.error("Please provide a Cellpose checkpoint path.")
+                st.stop()
+            model_path = checkpoint_path
+        else:
+            model_path = None            
+
+        try:
+            with st.spinner("Loading Cellpose model..."):
+                segmenter = load_cellpose(model_path)
+                st.success("Cellpose model loaded.")
+            with st.spinner("Segmenting cells..."):
+                result = segmenter.segment(image_array,diameter=cell_diameter,)
+                st.success("Cell segmentation complete.")
+        except Exception as e:
+            st.error(f"Cellpose failed: {e}")
+            st.stop()
+
+        masks = result.masks
+        n_cells = int(masks.max())
+        st.metric( "Detected Cells", n_cells,)  
+
+        cell_overlay = label2rgb(
+            masks,
+            image=image_array,
+            bg_label=0,
         )
-        st.write("Threshold manual:", threshold)
+        
+        st.subheader("Cellpose Results")  
+        col1, col2 = st.columns(2)
+        with col1:
+            st.image(
+                cell_overlay,
+                caption="Cell Instance Overlay",
+                width="stretch",
+            )
+        with col2:
+            mask_display = (
+                masks.astype(np.float32)
+                / max(n_cells, 1)
+                * 255
+            ).astype(np.uint8)
 
-   
-    segmentation = segment_membrane(dab,threshold=threshold, )
-    st.metric("DAB threshold", f"{threshold:.4f}",)
-
-    """
-
-    col1, col2 = st.columns(2)
-    with col1:
-        st.image(
-            mask_display,
-            caption="Cell Instance Mask",
-            width="stretch",        )
-    with col2:
-        st.image(
-            overlay,
-            caption="Cellpose Overlay",
-            width="stretch",        )
-
+            st.image(
+                mask_display,
+                caption="Cell Instance Mask",
+                width="stretch",
+            )
     
-    """mask = segmentation["cleaned_mask"]
-    total_pixels = mask.size
-    positive_pixels = np.count_nonzero(mask)
-    positive_fraction = (positive_pixels / total_pixels)
 
-    col1, col2, col3 = st.columns(3)    
-
-    with col1:
-        st.metric(
-            "Positive pixels",
-            f"{positive_pixels:,}",
-        )
-    with col2:
-        st.metric(
-            "Total pixels",
-            f"{total_pixels:,}",
-        )
-    with col3:
-        st.metric(
-            "Positive area",
-            f"{positive_fraction * 100:.2f}%",
-        )
-    """
     # --------------------------------------------------
     # Histograms
     # --------------------------------------------------
@@ -247,12 +218,12 @@ if uploaded:
     ax.set_ylabel("Pixel count")
     ax.set_title("Distribution of DAB Concentration")
     ax.grid(alpha=0.2)
-    ax.axvline(
+    """ax.axvline(
         threshold,
         color="red",
         linewidth=2,
         label="Threshold",
-    )
+    )"""
     st.pyplot(fig,width="stretch")
     plt.close(fig)
     
@@ -264,12 +235,12 @@ if uploaded:
     ax.set_ylabel("Pixel count")
     ax.set_title("Distribution of Hematoxylin Concentration")
     ax.grid(alpha=0.2)
-    ax.axvline(
+    """ax.axvline(
             threshold,
             color="red",
             linewidth=2,
             label="Threshold",
-        )
+        )"""
     st.pyplot(fig,width="stretch")
     plt.close(fig)
     
@@ -281,12 +252,12 @@ if uploaded:
     ax.set_ylabel("Pixel count")
     ax.set_title("Distribution of Eosin Concentration")
     ax.grid(alpha=0.2)
-    ax.axvline(
+    """ax.axvline(
             threshold,
             color="red",
             linewidth=2,
             label="Threshold",
-        )
+        )"""
     st.pyplot(fig,width="stretch")
     plt.close(fig)
     

@@ -1,4 +1,5 @@
 from dataclasses import dataclass
+from pathlib import Path
 
 import numpy as np
 from cellpose import models
@@ -16,15 +17,41 @@ class CellposeSegmenter:
 
     def __init__(
         self,
+        model_path: str | None = None,
         gpu: bool = False,
     ):
         """
         Cellpose 4.x segmenter.
-        Uses the Cellpose-SAM model through CellposeModel.
+
+        Parameters
+        ----------
+        model_path:
+            Optional path to a local Cellpose model/checkpoint.
+            If None, Cellpose uses its default pretrained model.
+
+        gpu:
+            Whether to use GPU.
         """
-        self.model = models.CellposeModel(
-            gpu=gpu,
-        )
+
+        if model_path is not None:
+
+            model_path = Path(model_path).expanduser()
+
+            if not model_path.exists():
+                raise FileNotFoundError(
+                    f"Cellpose model not found: {model_path}"
+                )
+
+            self.model = models.CellposeModel(
+                pretrained_model=str(model_path),
+                gpu=gpu,
+            )
+
+        else:
+
+            self.model = models.CellposeModel(
+                gpu=gpu,
+            )
 
     def segment(
         self,
@@ -43,3 +70,4 @@ class CellposeSegmenter:
             styles=styles,
             diameters=diameter,
         )
+
