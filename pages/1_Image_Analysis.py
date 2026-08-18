@@ -23,12 +23,6 @@ def load_cellpose(checkpoint_path):
         st.error(f"Error cargando el modelo: {e}")
         return None
 
-"""def load_cellpose(model_path=None):
-    return CellposeSegmenter(
-        model_path=model_path,
-        gpu=False,
-    )
-"""
 st.title("HER2 Image Analysis")
 
 uploaded = st.file_uploader(
@@ -219,6 +213,28 @@ if uploaded:
                 caption="Cell Instance Mask",
                 width="stretch",
             )
+        
+        st.divider()
+        #--------------------------------------------------
+        # Fractal Analysis
+        #--------------------------------------------------
+        st.subheader("Fractal Analysis")
+        st.caption("Fractal analysis of the DAB channel.")
+        binary_mask = (masks > 0).astype(np.uint8)
+        with st.spinner("Calculating fractal metrics..."):
+            box_result = calculate_box_counting(binary_mask)
+            lac_result = calculate_lacunarity(binary_mask)
+            multifractal_result = calculate_multifractal(binary_mask)
+        st.success("Fractal analysis complete.")
+        st.subheader("Box Counting")
+        st.write(box_result.fractal_dimension)
+        st.subheader("Lacunarity")
+        st.write(lac_result.lacunarity)
+        st.subheader("Multifractal")
+        st.write(multifractal_result.q_values)
+        st.write(multifractal_result.generalized_dimensions)
+        st.write(multifractal_result.alpha)
+        st.write(multifractal_result.f_alpha)
     
 
     # --------------------------------------------------
@@ -233,12 +249,6 @@ if uploaded:
     ax.set_ylabel("Pixel count")
     ax.set_title("Distribution of DAB Concentration")
     ax.grid(alpha=0.2)
-    """ax.axvline(
-        threshold,
-        color="red",
-        linewidth=2,
-        label="Threshold",
-    )"""
     st.pyplot(fig,width="stretch")
     plt.close(fig)
     
@@ -250,12 +260,6 @@ if uploaded:
     ax.set_ylabel("Pixel count")
     ax.set_title("Distribution of Hematoxylin Concentration")
     ax.grid(alpha=0.2)
-    """ax.axvline(
-            threshold,
-            color="red",
-            linewidth=2,
-            label="Threshold",
-        )"""
     st.pyplot(fig,width="stretch")
     plt.close(fig)
     
@@ -267,47 +271,6 @@ if uploaded:
     ax.set_ylabel("Pixel count")
     ax.set_title("Distribution of Eosin Concentration")
     ax.grid(alpha=0.2)
-    """ax.axvline(
-            threshold,
-            color="red",
-            linewidth=2,
-            label="Threshold",
-        )"""
     st.pyplot(fig,width="stretch")
     plt.close(fig)
     
-    st.divider()
-    #--------------------------------------------------
-    # Fractal Analysis
-    #--------------------------------------------------
-    st.subheader("Fractal Analysis")
-    st.caption("Fractal analysis of the DAB channel.")
-    binary_mask = (masks > 0).astype(np.uint8)
-
-    with st.spinner("Calculating fractal metrics..."):
-
-        box_result = calculate_box_counting(
-            binary_mask
-        )
-
-        lac_result = calculate_lacunarity(
-            binary_mask
-        )
-
-        multifractal_result = calculate_multifractal(
-            binary_mask
-        )
-
-    st.success("Fractal analysis complete.")
-
-    st.subheader("Box Counting")
-    st.write(box_result.fractal_dimension)
-
-    st.subheader("Lacunarity")
-    st.write(lac_result.lacunarity)
-
-    st.subheader("Multifractal")
-    st.write(multifractal_result.q_values)
-    st.write(multifractal_result.generalized_dimensions)
-    st.write(multifractal_result.alpha)
-    st.write(multifractal_result.f_alpha)
