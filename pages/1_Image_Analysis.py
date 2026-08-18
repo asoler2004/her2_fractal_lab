@@ -1,22 +1,34 @@
-from pandas import col
-
-from core.segmentation.cellpose_segmentation import CellposeSegmenter
 import streamlit as st
 import numpy as np
 import matplotlib.pyplot as plt
 from core.io.loader import load_image
 from core.io.loader import SUPPORTED_FORMATS
 from core.preprocessing.color_deconvolution import (color_deconvolution)
-#from core.segmentation.membrane_segmentation import (segment_membrane,)
 from skimage.color import label2rgb
+from cellpose import models
+from core.fractals import (
+    calculate_box_counting,
+    calculate_lacunarity,
+    calculate_multifractal,
+)
 
 @st.cache_resource
-def load_cellpose(model_path=None):
+def load_cellpose(checkpoint_path):
+    try:
+        model = models.CellposeModel(gpu=False, pretrained_model=checkpoint_path)
+        print("Cellpose model loaded successfully.")
+        return model
+
+    except Exception as e:
+        st.error(f"Error cargando el modelo: {e}")
+        return None
+
+"""def load_cellpose(model_path=None):
     return CellposeSegmenter(
         model_path=model_path,
         gpu=False,
     )
-
+"""
 st.title("HER2 Image Analysis")
 
 uploaded = st.file_uploader(
@@ -126,7 +138,7 @@ if uploaded:
     if model_source == "Local checkpoint":
         checkpoint_path = st.text_input(
             "Cellpose checkpoint path",
-            placeholder="/home/antonia/models/cellpose_model",
+            value="/home/antonia/.cellpose/models/cpsam_v2",
         )
     else:
         checkpoint_path = None
@@ -168,13 +180,16 @@ if uploaded:
                 segmenter = load_cellpose(model_path)
                 st.success("Cellpose model loaded.")
             with st.spinner("Segmenting cells..."):
-                result = segmenter.segment(image_array,diameter=cell_diameter,)
+                masks, flows, styles = segmenter.eval(
+                    image_array, 
+                    channels=[0, 0],   # Adjust based on your channel mappings (e.g., [2, 3])
+                    diameter=cell_diameter
+                )
                 st.success("Cell segmentation complete.")
         except Exception as e:
             st.error(f"Cellpose failed: {e}")
             st.stop()
 
-        masks = result.masks
         n_cells = int(masks.max())
         st.metric( "Detected Cells", n_cells,)  
 
@@ -262,3 +277,37 @@ if uploaded:
     plt.close(fig)
     
     st.divider()
+    #--------------------------------------------------
+    # Fractal Analysis
+    #--------------------------------------------------
+    st.subheader("Fractal Analysis")
+    st.caption("Fractal analysis of the DAB channel.")
+    binary_mask = (masks > 0).astype(np.uint8)
+
+    with st.spinner("Calculating fractal metrics..."):
+
+        box_result = calculate_box_counting(
+            binary_mask
+        )
+
+        lac_result = calculate_lacunarity(
+            binary_mask
+        )
+
+        multifractal_result = calculate_multifractal(
+            binary_mask
+        )
+
+    st.success("Fractal analysis complete.")
+
+    st.subheader("Box Counting")
+    st.write(box_result.fractal_dimension)
+
+    st.subheader("Lacunarity")
+    st.write(lac_result.lacunarity)
+
+    st.subheader("Multifractal")
+    st.write(multifractal_result.q_values)
+    st.write(multifractal_result.generalized_dimensions)
+    st.write(multifractal_result.alpha)
+    st.write(multifractal_result.f_alpha)
