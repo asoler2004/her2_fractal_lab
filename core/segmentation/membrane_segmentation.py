@@ -7,7 +7,7 @@ from skimage.morphology import (closing,opening,disk,remove_small_objects,)
 def segment_membrane(
     dab: np.ndarray,
     threshold: float | None = None,
-    min_size: int = 50,
+    min_size: int = 15,
     morphology_radius: int = 1,
 ) -> dict[str, np.ndarray | float]:
     """
@@ -57,7 +57,7 @@ def segment_membrane(
     if threshold is None:
         threshold = threshold_otsu(dab)
 
-    raw_mask = dab >= threshold
+    dab_binary_mask = (dab >= threshold).astype(np.uint8)
 
     # --------------------------------------------------
     # Morphological cleanup
@@ -66,7 +66,7 @@ def segment_membrane(
     footprint = disk(morphology_radius)
 
     cleaned_mask = opening(
-        raw_mask,
+        dab_binary_mask,
         footprint,
     )
 
@@ -89,6 +89,6 @@ def segment_membrane(
 
     return {
         "threshold": float(threshold),
-        "raw_mask": raw_mask,
+        "dab_binary_mask": dab_binary_mask,
         "cleaned_mask": cleaned_mask,
     }
